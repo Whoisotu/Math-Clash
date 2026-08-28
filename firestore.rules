@@ -1,0 +1,21 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /rooms/{roomId} {
+      function signedIn() { return request.auth != null; }
+      function player() { return signedIn() && (resource.data.hostUid == request.auth.uid || resource.data.guestUid == request.auth.uid); }
+      allow create: if signedIn() && request.resource.data.hostUid == request.auth.uid;
+      allow read: if player();
+      // The browser host coordinates each round. Move validation to Cloud Functions before public launch.
+      allow update: if player();
+      match /privateNumbers/{playerId} {
+        allow create, update: if signedIn() && request.auth.uid == playerId;
+        allow read: if signedIn() && (request.auth.uid == playerId || get(/databases/$(database)/documents/rooms/$(roomId)).data.status in ['reveal', 'countdown', 'playing', 'result']);
+      }
+      match /answers/{playerId} {
+        allow create, update: if signedIn() && request.auth.uid == playerId;
+        allow read: if player();
+      }
+    }
+  }
+}
